@@ -18,6 +18,7 @@ import net.cua.excel.processor.Watch;
 import net.cua.excel.util.FileUtil;
 import net.cua.excel.util.StringUtil;
 import net.cua.excel.util.ZipUtil;
+import net.cua.excel.util._7ZipUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dom4j.*;
@@ -701,7 +702,8 @@ public class Workbook {
             what("0003");
 
             // Zip compress
-            Path zipFile = ZipUtil.zipExcludeRoot(root, root);
+//            Path zipFile = ZipUtil.zipExcludeRoot(root, root);
+            Path zipFile = _7ZipUtil.zip(root, root);
             what("0004", zipFile.toString());
 
             // Delete source files

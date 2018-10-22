@@ -6,7 +6,7 @@
 
     <groupId>net.cua</groupId>
     <artifactId>eec</artifactId>
-    <version>0.2.3</version>
+    <version>0.2.3-7z</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -17,6 +17,7 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <dom4j.version>1.6.1</dom4j.version>
         <log4j.version>2.11.1</log4j.version>
+        <_7z.version>9.20-2.00beta</_7z.version>
     </properties>
 
     <dependencies>
@@ -34,6 +35,16 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
             <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sf.sevenzipjbinding</groupId>
+            <artifactId>sevenzipjbinding</artifactId>
+            <version>${_7z.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sf.sevenzipjbinding</groupId>
+            <artifactId>sevenzipjbinding-all-platforms</artifactId>
+            <version>${_7z.version}</version>
         </dependency>
     </dependencies>
 </project>
