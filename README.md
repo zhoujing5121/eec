@@ -38,7 +38,7 @@ pom.xml添加
 </dependency>
 ```
 
-eec内部依赖dom4j.1.6.1和log4j.2.11.1如果目标工程已包含此依赖，使用如下引用
+eec内部依赖dom4j.1.6.1，log4j.2.11.1和sevenzipjbinding.9.20-2.00beta如果目标工程已包含此依赖，使用如下引用
 
 ```
 <dependency>
@@ -57,6 +57,14 @@ eec内部依赖dom4j.1.6.1和log4j.2.11.1如果目标工程已包含此依赖，
         <exclusion>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
+        </exclusion>
+        <exclusion>
+            <groupId>net.sf.sevenzipjbinding</groupId>
+            <artifactId>sevenzipjbinding</artifactId>
+        </exclusion>
+        <exclusion>
+            <groupId>net.sf.sevenzipjbinding</groupId>
+            <artifactId>sevenzipjbinding-all-platforms</artifactId>
         </exclusion>
     </exclusions>
 </dependency>
