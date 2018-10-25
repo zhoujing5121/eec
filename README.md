@@ -15,8 +15,9 @@ eec并不是一个功能全面的excel操作工具类，它功能有限并不能
 5. excel隔行变色
 6. 设置列宽自动调节（功能未完善）
 7. 设置水印（文字，本地＆网络图片）
-8. Reader支持iterator或者stream+lambda操作sheet或行数据，你可以像操作集合类一样读取并操作excel
-9. Reader内置的to和too方法可以方便将行数据转换为对象（前者每次转换都会实例化一个对象，后者内存共享仅产生一个实例）
+8. ExcelReader采用stream方式读取文件，只有当你操作某行数据的时候才会执行读文件，而不会将整个文件读入到内存。
+9. Reader支持iterator或者stream+lambda操作sheet或行数据，你可以像操作集合类一样读取并操作excel
+10. Reader内置的to和too方法可以方便将行数据转换为对象（前者每次转换都会实例化一个对象，后者内存共享仅产生一个实例）
 
 ## 使用方法
 
@@ -38,7 +39,7 @@ pom.xml添加
 </dependency>
 ```
 
-eec内部依赖dom4j.1.6.1，log4j.2.11.1和sevenzipjbinding.9.20-2.00beta如果目标工程已包含此依赖，使用如下引用
+eec内部依赖dom4j.1.6.1和log4j.2.11.1如果目标工程已包含此依赖，使用如下引用
 
 ```
 <dependency>
@@ -57,14 +58,6 @@ eec内部依赖dom4j.1.6.1，log4j.2.11.1和sevenzipjbinding.9.20-2.00beta如果
         <exclusion>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-        </exclusion>
-        <exclusion>
-            <groupId>net.sf.sevenzipjbinding</groupId>
-            <artifactId>sevenzipjbinding</artifactId>
-        </exclusion>
-        <exclusion>
-            <groupId>net.sf.sevenzipjbinding</groupId>
-            <artifactId>sevenzipjbinding-all-platforms</artifactId>
         </exclusion>
     </exclusions>
 </dependency>
