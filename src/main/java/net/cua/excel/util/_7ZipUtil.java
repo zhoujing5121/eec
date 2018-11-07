@@ -22,6 +22,9 @@ public class _7ZipUtil {
         if (!destPath.toString().endsWith(suffix)) {
             destPath = Paths.get(destPath.toString() + suffix);
         }
+        if (!Files.exists(destPath.getParent())) {
+            FileUtil.mkdir(destPath.getParent());
+        }
         List<Path> list = new ArrayList<>();
         int i = 0;
         for (Path src : srcPath) {
