@@ -29,6 +29,7 @@ public class Sheet implements AutoCloseable {
     private SharedString sst;
     private int startRow = -1; // row index of data
     private Row header;
+    private boolean hidden; // state hidden
 
     void setName(String name) {
         this.name = name;
@@ -70,6 +71,28 @@ public class Sheet implements AutoCloseable {
 
     public int getStartRow() {
         return startRow;
+    }
+
+    /**
+     * Test Worksheet is hidden
+     */
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    /**
+     * Test Worksheet is show
+     */
+    public boolean isShow() {
+        return !hidden;
+    }
+
+    /**
+     * Set Worksheet state
+     */
+    Sheet setHidden(boolean hidden) {
+        this.hidden = hidden;
+        return this;
     }
 
     /**
@@ -310,11 +333,6 @@ public class Sheet implements AutoCloseable {
                 try {
                     // Skip empty rows
                     for ( ; (nextRow = nextRow()) != null && nextRow.isEmpty(); );
-                    // TODO debug
-//                    if (nextRow == null) {
-//                        System.out.println("total:" + sst.total + ",eden:" +sst.total_eden + ",old:"+sst.total_old + ",hot:" + sst.total_hot);
-//                    }
-                    // TODO -----end----------
                     return nextRow != null;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -345,11 +363,6 @@ public class Sheet implements AutoCloseable {
             } else {
                 try {
                     nextRow = nextRow();
-                    // TODO debug
-//                    if (nextRow == null) {
-//                        System.out.println("total:" + sst.total + ",eden:" +sst.total_eden + ",old:"+sst.total_old + ",hot:" + sst.total_hot);
-//                    }
-                    // TODO -----end----------
                     return (nextRow != null);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -404,5 +417,8 @@ public class Sheet implements AutoCloseable {
         if (reader != null) {
             reader.close();
         }
+        if (sst != null)
+            sst.close();
     }
 }
+
