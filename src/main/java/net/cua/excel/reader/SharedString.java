@@ -24,8 +24,12 @@ class SharedString {
     private Logger logger = LogManager.getLogger(getClass());
     private Path sstPath;
 
-    SharedString(Path sstPath) {
+    SharedString(Path sstPath, int cacheSize, int hotSize) {
         this.sstPath = sstPath;
+        if (cacheSize > 0) {
+            this.page = cacheSize;
+        }
+        this.hotSize = hotSize;
     }
 
     /** 新加载数据放入此区域 */
@@ -33,7 +37,7 @@ class SharedString {
     /** eden区未命中时将数据复制到此区域 */
     private String[] old;
     /** 每次加载的数量 */
-    private int page = 256;
+    private int page = 512;
     /** 整个文件有多少个字符串 */
     private int max = -1, vt = 0, offsetR = 0, offsetM = 0;
     /** 新生代offset */
@@ -48,6 +52,8 @@ class SharedString {
     private TIntIntHashMap count_area = null;
     /** hot world */
     private Hot hot;
+    /** size of hot */
+    private int hotSize;
     /** 记录各段的起始位置 */
     private Map<Integer, Long> index_area = null;
 
@@ -59,6 +65,8 @@ class SharedString {
     private int offset;
     /** current skip of Main reader */
     private long skipR;
+    /** escape buffer */
+    private StringBuilder escapeBuf;
     // For debug
     private int total, total_eden, total_old, total_hot;
 
@@ -76,12 +84,13 @@ class SharedString {
                 if (max > 0 && max / page + 1 > default_cap) default_cap = max / page + 1;
                 count_area =  new TIntIntHashMap(default_cap);
 
-                hot = new Hot();
+                if (hotSize > 0) hot = new Hot(hotSize);
+                else hot = new Hot();
             }
             else {
                 eden = new String[max];
             }
-            index_area = new HashMap(default_cap);
+            index_area = new HashMap<>(default_cap);
             index_area.put(0, (long) vt);
         } else {
             max = 0;
@@ -92,7 +101,7 @@ class SharedString {
     private int uniqueCount() throws IOException {
         int off = -1;
         reader = Files.newBufferedReader(sstPath);
-        cb = new char[1024];
+        cb = new char[2048];
         offset = 0;
         offset = reader.read(cb);
 
@@ -176,6 +185,7 @@ class SharedString {
             }
             value = eden[index - offset_eden];
             if (test(index)) {
+                logger.debug("put hot {}", index);
                 hot.push(index, value);
             }
             total_eden++;
@@ -243,7 +253,7 @@ class SharedString {
         try (BufferedReader br = Files.newBufferedReader(sstPath)) {
             char[] cb = new char[this.cb.length];
             int nChar, length, n = 0, offset = 0;
-            long skip = index_area.containsKey(index) ? index_area.get(index) : 0L, skipR = skip;
+            long skip = index_area.getOrDefault(index, 0L), skipR = skip;
 
             // 跳过N个区域读取时预先记录跳过的区域起始位置
             if (skip <= 0L) {
@@ -282,21 +292,16 @@ class SharedString {
             while ((length = br.read(cb, offset, cb.length - offset)) > 0 || offset > 0) {
                 length += offset;
                 nChar = offset &= 0;
-                int cursor = 0, len0 = length - 3, len1 = len0 - 1;
-                for ( ; nChar < length && n < page; ) {
-                    for (; nChar < len0 && (cb[nChar] != '<' || cb[nChar + 1] != 't' || cb[nChar + 2] != '>'); ++nChar);
-                    if (nChar >= len0) break; // Not found
-                    cursor = nChar;
-                    int a = nChar += 3;
-                    for (; nChar < len1 && (cb[nChar] != '<' || cb[nChar + 1] != '/' || cb[nChar + 2] != 't' || cb[nChar + 3] != '>'); ++nChar);
-                    if (nChar >= len1) break; // Not found
-                    eden[n++] = nChar > a ? new String(cb, a, nChar - a) : null;
-                    nChar += 4;
-                    cursor = nChar;
-                }
+                int cursor, len0 = length - 3, len1 = len0 - 1;
+                int[] t = findT(cb, nChar, length, len0, len1, n);
 
-                skipR += cursor;
+                nChar = t[0];
+                n = t[1];
+                cursor = t[2];
+
                 limit_eden = n;
+                skipR += cursor;
+
                 // A page
                 if (n == page) {
                     // Save next start index
@@ -330,21 +335,15 @@ class SharedString {
         while ((length = reader.read(cb, offset, cb.length - offset)) > 0 || offset > 0) {
             length += offset;
             nChar = offset &= 0;
-            int cursor = 0, len0 = length - 3, len1 = len0 - 1;
-            for ( ; nChar < length && n < page; ) {
-                for (; nChar < len0 && (cb[nChar] != '<' || cb[nChar + 1] != 't' || cb[nChar + 2] != '>'); ++nChar);
-                if (nChar >= len0) break; // Not found
-                cursor = nChar;
-                int a = nChar += 3;
-                for (; nChar < len1 && (cb[nChar] != '<' || cb[nChar + 1] != '/' || cb[nChar + 2] != 't' || cb[nChar + 3] != '>'); ++nChar);
-                if (nChar >= len1) break; // Not found
-                eden[n++] = nChar > a ? new String(cb, a, nChar - a) : null;
-                nChar += 4;
-                cursor = nChar;
-            }
+            int cursor, len0 = length - 3, len1 = len0 - 1;
+            int[] t = findT(cb, nChar, length, len0, len1, n);
 
-            skipR += cursor;
+            nChar = t[0];
+            n = t[1];
+            cursor = t[2];
+
             limit_eden = n;
+            skipR += cursor;
 
             if (cursor < length) {
                 System.arraycopy(cb, cursor, cb, 0, offset = length - cursor);
@@ -359,10 +358,100 @@ class SharedString {
                 if (max == -1) { // Reset totals when unknown size
                     max = offsetM * page + n;
                 }
+                ++offsetM; // out of index range
                 break;
             }
         }
         return n; // Return word count
+    }
+
+    private int[] findT(char[] cb, int nChar, int length, int len0, int len1, int n) {
+        int cursor = 0;
+        for ( ; nChar < length && n < page; ) {
+            for (; nChar < len0 && (cb[nChar] != '<' || cb[nChar + 1] != 't' || cb[nChar + 2] != '>' && cb[nChar + 2] != ' '); ++nChar);
+            if (nChar >= len0) break; // Not found
+            cursor = nChar;
+            int a = nChar += 3;
+            if (cb[nChar - 1] == ' ') { // space="preserve"
+                for (; nChar < len0 && cb[nChar++] != '>'; );
+                if (nChar >= len0) break; // Not found
+                cursor = nChar;
+                a = nChar;
+            }
+            for (; nChar < len1 && (cb[nChar] != '<' || cb[nChar + 1] != '/' || cb[nChar + 2] != 't' || cb[nChar + 3] != '>'); ++nChar);
+            if (nChar >= len1) break; // Not found
+            eden[n++] = nChar > a ? unescape(cb, a, nChar) : null;
+            nChar += 4;
+            cursor = nChar;
+        }
+        return new int[]{ nChar, n, cursor };
+    }
+
+    /**
+     * 反转义
+     */
+    private String unescape(char[] cb, int from, int to) {
+        int idx_38 = indexOf(cb, '&', from), idx_59 = idx_38 > -1 && idx_38 < to ? indexOf(cb, ';', idx_38 + 1) : -1;
+
+        if (idx_38 <= 0 || idx_38 >= idx_59 || idx_59 > to) {
+            return new String(cb, from, to - from);
+        }
+        if (escapeBuf != null) {
+            escapeBuf.delete(0, escapeBuf.length());
+        } else {
+            escapeBuf = new StringBuilder(to - from < 10 ? 10 : to - from);
+        }
+        do {
+            escapeBuf.append(cb, from, idx_38 - from);
+            // ASCII值
+            if (cb[idx_38 + 1] == '#') {
+                int n = toInt(cb, idx_38+2, idx_59);
+                // byte range
+                if (n < 0 || n > 127) {
+                    logger.warn("Unknown escape [{}]", new String(cb, idx_38, idx_59 - idx_38 + 1));
+                }
+                // Unicode char
+                escapeBuf.append((char) n);
+            }
+            // 转义字符
+            else {
+                String name = new String(cb, idx_38+1, idx_59 - idx_38 - 1);
+                switch (name) {
+                    case "lt": escapeBuf.append('<'); break;
+                    case "gt": escapeBuf.append('>'); break;
+                    case "amp": escapeBuf.append('&'); break;
+                    case "quot": escapeBuf.append('"'); break;
+                    case "nbsp": escapeBuf.append(' '); break;
+                    default: // Unknown escape
+                        logger.warn("Unknown escape [&{}]", name);
+                        escapeBuf.append(cb, idx_38, idx_59 - idx_38 + 1);
+                }
+            }
+            from = ++idx_59;
+            idx_59 = (idx_38 = indexOf(cb, '&', idx_59)) > -1 && idx_38 < to ? indexOf(cb, ';', idx_38 + 1) : -1;
+        } while (idx_38 > -1 && idx_59 > idx_38 && idx_59 <= to);
+
+        if (from < to) {
+            escapeBuf.append(cb, from, to - from);
+        }
+        return escapeBuf.toString();
+    }
+
+    private int indexOf(char[] cb, char c, int from) {
+        for ( ; from < cb.length; from++) {
+            if (cb[from] == c) return from;
+        }
+        return -1;
+    }
+
+    private int toInt(char[] cb, int a, int b) {
+        boolean _n;
+        if (_n = cb[a] == '-') a++;
+        int n = cb[a++] - '0';
+        for (; b > a; ) {
+            n = n * 10 + cb[a++] - '0';
+        }
+        return _n ? -n : n;
     }
 
     /**
@@ -379,6 +468,14 @@ class SharedString {
         cb = null;
         eden = null;
         old = null;
+        if (index_area != null) {
+            index_area.clear();
+            index_area = null;
+        }
+        if (count_area != null) {
+            count_area.clear();
+            count_area = null;
+        }
+        escapeBuf = null;
     }
 }
-
