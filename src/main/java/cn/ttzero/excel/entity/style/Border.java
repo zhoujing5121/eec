@@ -347,9 +347,19 @@ public class Border {
         }
 
         boolean down = borders[4] != null, up = borders[5] != null;
+        // |---|
+        // |\  |
+        // | \ |
+        // |  \|
+        // |---|
         if (down) {
             element.addAttribute("diagonalDown", "1");
         }
+        // |---|
+        // |  /|
+        // | / |
+        // |/  |
+        // |---|
         if (up) {
             element.addAttribute("diagonalUp", "1");
         }
