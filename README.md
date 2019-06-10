@@ -54,7 +54,7 @@ pom.xml添加
 </dependency>
 ```
 
-eec内部仅依赖dom4j.1.6.1和log4j.2.11.1, 如果目标工程已包含此依赖，使用如下引用
+eec内部仅依赖dom4j.1.6.1和log4j.2.11.1,以及net.sf.sevenzipjbinding.9.20-2.00beta 如果目标工程已包含此依赖，使用如下引用
 
 ```
 <dependency>
@@ -87,9 +87,9 @@ xls格式的读取与xlsx对外暴露完全一样，ExcelReader内部判断文�
 示例请查找`testReadXLS()`方法。
 
 Download
-- [eec-0.3.0.jar](./beta/eec-0.3.0.jar)
-- [eec-0.3.0-sources.jar](./beta/eec-0.3.0-sources.jar)
-- [eec-e3-support-0.3.0.jar](./beta/eec-e3-support-0.3.0.jar)
+- [eec-0.3.1-7z.jar](./beta/eec-0.3.1-7z.jar)
+- [eec-0.3.1-7z-sources.jar](./beta/eec-0.3.1-7z-sources.jar)
+- [eec-e3-support-0.3.1.jar](./beta/eec-e3-support-0.3.1.jar)
 
 *注意：eec-e3-support依赖于eec不能独立存在*
 

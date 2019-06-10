@@ -28,6 +28,7 @@ import cn.ttzero.excel.reader.ExcelReadException;
 import cn.ttzero.excel.util.FileUtil;
 import cn.ttzero.excel.util.StringUtil;
 import cn.ttzero.excel.util.ZipUtil;
+import cn.ttzero.excel.util._7ZipUtil;
 import org.dom4j.*;
 import org.dom4j.io.SAXReader;
 
@@ -447,7 +448,7 @@ public class XMLWorkbookWriter implements IWorkbookWriter {
             workbook.what("0003");
 
             // Zip compress
-            Path zipFile = ZipUtil.zipExcludeRoot(root, root);
+            Path zipFile = _7ZipUtil.zip(root, root);
             workbook.what("0004", zipFile.toString());
 
             // Delete source files
@@ -524,7 +525,7 @@ public class XMLWorkbookWriter implements IWorkbookWriter {
         workbook.what("0003");
 
         // Zip compress
-        Path zipFile = ZipUtil.zipExcludeRoot(temp, temp);
+        Path zipFile = _7ZipUtil.zip(temp, temp);
         workbook.what("0004", zipFile.toString());
 
         // Delete source files

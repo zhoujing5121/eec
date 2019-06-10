@@ -1,16 +1,21 @@
-package net.cua.excel.util;
+package cn.ttzero.excel.util;
 
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.OutItemFactory;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileOutStream;
 import net.sf.sevenzipjbinding.util.ByteArrayStream;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+
+import static cn.ttzero.excel.util.ZipUtil.list;
 
 /**
  * 7z util. using JNI
@@ -26,31 +31,14 @@ public class _7ZipUtil {
             FileUtil.mkdir(destPath.getParent());
         }
         List<Path> list = new ArrayList<>();
-        int i = 0;
-        for (Path src : srcPath) {
-            if (Files.isDirectory(src)) {
-                list.addAll(Arrays.stream(src.toFile().listFiles()).map(File::toPath).collect(Collectors.toList()));
-                while (i < list.size()) {
-                    if (Files.isDirectory(list.get(i))) {
-                        list.addAll(Arrays.stream(list.get(i).toFile().listFiles()).map(File::toPath).collect(Collectors.toList()));
-                    }
-                    i++;
-                }
-            } else {
-                list.add(src);
-                i++;
-            }
-        }
+        list(list, new int[srcPath.length], srcPath);
 
         Path[] paths = list.toArray(new Path[list.size()]);
 
-        RandomAccessFile raf = null;
-        IOutCreateArchiveZip outArchive = null;
-        try {
-            raf = new RandomAccessFile(destPath.toFile(), "rw");
+        try (RandomAccessFile raf = new RandomAccessFile(destPath.toFile(), "rw");
+             IOutCreateArchiveZip outArchive = SevenZip.openOutArchiveZip()) {
 
             // Open out-archive object
-            outArchive = SevenZip.openOutArchiveZip();
 
             // Configure archive
             outArchive.setLevel(3);
@@ -60,13 +48,16 @@ public class _7ZipUtil {
                 paths.length, new IOutCreateCallback<IOutItemZip>() {
 
                     @Override
-                    public void setTotal(long total) throws SevenZipException { }
+                    public void setTotal(long total) throws SevenZipException {
+                    }
 
                     @Override
-                    public void setCompleted(long complete) throws SevenZipException { }
+                    public void setCompleted(long complete) throws SevenZipException {
+                    }
 
                     @Override
-                    public void setOperationResult(boolean operationResultOk) throws SevenZipException { }
+                    public void setOperationResult(boolean operationResultOk) throws SevenZipException {
+                    }
 
                     @Override
                     public IOutItemZip getItemInformation(int index, OutItemFactory<IOutItemZip> outItemFactory) throws SevenZipException {
@@ -100,7 +91,7 @@ public class _7ZipUtil {
                         InputStream is;
                         try {
                             is = Files.newInputStream(p);
-                        } catch(IOException e) {
+                        } catch (IOException e) {
                             throw new SevenZipException("Read file " + p + " error.");
                         }
 
@@ -113,25 +104,6 @@ public class _7ZipUtil {
                         return stream;
                     }
                 });
-        } catch (IOException e) {
-//            System.err.println("7z-Error occurs:");
-            // Get more information using extended method
-            throw e;
-        } finally {
-            if (outArchive != null) {
-                try {
-                    outArchive.close();
-                } catch (IOException e) {
-                    throw e;
-                }
-            }
-            if (raf != null) {
-                try {
-                    raf.close();
-                } catch (IOException e) {
-                    throw e;
-                }
-            }
         }
         return destPath;
     }
