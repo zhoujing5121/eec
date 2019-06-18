@@ -17,6 +17,7 @@
 package cn.ttzero.excel.entity.style;
 
 import cn.ttzero.excel.annotation.TopNS;
+import cn.ttzero.excel.entity.ExcelWriteException;
 import cn.ttzero.excel.entity.I18N;
 import cn.ttzero.excel.entity.Storageable;
 import cn.ttzero.excel.manager.Const;
@@ -64,6 +65,16 @@ public class Styles implements Storageable {
      */
     private Set<Integer> dateFmtCache;
 
+    /**
+     * Current read/write status
+     * The status determines the content of the map,
+     * {@code map.put(style, styleIndex)} when 'WRITE' otherwise
+     * {@code map.put(styleIndex, style)}
+     */
+    private volatile byte status;
+
+    private static final byte READ = 1, WRITE = 0;
+
     private Styles() {
         map = new HashMap<>();
     }
@@ -75,6 +86,8 @@ public class Styles implements Storageable {
      * @return the style index
      */
     public int of(int s) {
+        if (status != WRITE)
+            throw new ExcelWriteException("Current status is not 'WRITE'.");
         int n = map.getOrDefault(s, 0);
         if (n == 0) {
             n = addStyle(s);
@@ -105,6 +118,7 @@ public class Styles implements Storageable {
      */
     public static Styles create(I18N i18N) {
         Styles self = new Styles();
+        self.status = WRITE;
 
         DocumentFactory factory = DocumentFactory.getInstance();
         TopNS ns = self.getClass().getAnnotation(TopNS.class);
@@ -197,6 +211,7 @@ public class Styles implements Storageable {
         }
 
         Styles self = new Styles();
+        self.status = READ;
         Element root = document.getRootElement();
         // Number format
         Element numFmts = root.element("numFmts");
@@ -242,17 +257,18 @@ public class Styles implements Storageable {
      * @return the numFmt part value in style
      */
     public final int addNumFmt(NumFmt numFmt) {
+        if (isEmpty(numFmt.getCode())) {
+            throw new NullPointerException("NumFmt code");
+        }
         // check and search default code
-        if (numFmt.getId() < 0) {
-            if (isEmpty(numFmt.getCode())) {
-                throw new NullPointerException("NumFmt code");
-            }
-            int index = BuiltInNumFmt.indexOf(numFmt.getCode());
-            if (index > -1) { // default code
-                numFmt.setId(index);
-            } else {
-                int i = numFmts.indexOf(numFmt);
-                if (i <= -1) {
+        int i = numFmts.indexOf(numFmt);
+        if (i < 0) {
+            if (numFmt.getId() < 0) {
+                int index = BuiltInNumFmt.indexOf(numFmt.getCode());
+                // Built-in number format
+                if (index > -1) {
+                    numFmt.setId(index);
+                } else {
                     int id;
                     if (numFmts.isEmpty()) {
                         id = 176; // customer id
@@ -260,16 +276,16 @@ public class Styles implements Storageable {
                         id = numFmts.get(numFmts.size() - 1).getId() + 1;
                     }
                     numFmt.setId(id);
-                    numFmts.add(numFmt);
-
-                    Element element = document.getRootElement().element("numFmts");
-                    element.attribute("count").setValue(String.valueOf(numFmts.size()));
-                    numFmt.toDom4j(element);
-                } else {
-                    numFmt.setId(numFmts.get(i).getId());
                 }
             }
-        }
+            int n = Collections.binarySearch(numFmts, numFmt);
+            if (n < 0) {
+                numFmts.add(~n, numFmt);
+            }
+            Element element = document.getRootElement().element("numFmts");
+            element.attribute("count").setValue(String.valueOf(numFmts.size()));
+            numFmt.toDom4j(element);
+        } else numFmt.setId(numFmts.get(i).getId());
         return numFmt.getId() << INDEX_NUMBER_FORMAT;
     }
 
@@ -579,14 +595,16 @@ public class Styles implements Storageable {
         NumFmt numFmt;
         // All indexes from 0 to 163 are reserved for built-in formats.
         // The first user-defined format starts at 164.
-        if (nf < 164) {
-            isDate = (nf >= 14 && nf <= 22
-                || nf >= 27 && nf <= 36
-                || nf >= 45 && nf <= 47
-                || nf >= 50 && nf <= 58
-                || nf == 81);
-            // Test by numFmt code
-        } else if ((numFmt = findFmtById(nf)) != null && (isNotEmpty(numFmt.getCode()))) {
+//        if (nf < 164) {
+        isDate = (nf >= 14 && nf <= 22
+            || nf >= 27 && nf <= 36
+            || nf >= 45 && nf <= 47
+            || nf >= 50 && nf <= 58
+            || nf == 81);
+//        }
+
+        // Test by numFmt code
+        if (!isDate && (numFmt = findFmtById(nf)) != null && (isNotEmpty(numFmt.getCode()))) {
             isDate = testCodeIsDate(numFmt.getCode());
         }
 
@@ -764,4 +782,20 @@ public class Styles implements Storageable {
         return dateFmtCache != null && dateFmtCache.contains(styleIndex);
     }
 
+    /**
+     * Checkout all styles and cache all index of the date-format
+     */
+    public void dateCheckout() {
+        if (status == WRITE) {
+            Map<Integer, Integer> readMap = new HashMap<>();
+            for (Map.Entry<Integer, Integer> entry : map.entrySet()) {
+                readMap.put(entry.getValue(), entry.getKey());
+            }
+            map = readMap;
+            status = READ;
+        }
+        for (Integer key : map.keySet()) {
+            isDate(key);
+        }
+    }
 }

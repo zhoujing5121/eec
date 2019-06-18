@@ -77,10 +77,10 @@ public class NumFmt implements Comparable<NumFmt> {
     }
 
     /**
-     * 内置format
+     * Built-In format
      *
-     * @param id
-     * @return
+     * @param id the Built-in id
+     * @return the {@link NumFmt}
      */
     public static NumFmt valueOf(int id) {
         return new NumFmt().setId(id);

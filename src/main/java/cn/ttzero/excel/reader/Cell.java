@@ -59,6 +59,10 @@ public class Cell {
      */
     public short s;
 
+    public void setS(short s) {
+        this.s = s;
+    }
+
     public void setT(char t) {
         this.t = t;
     }
